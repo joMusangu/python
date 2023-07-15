@@ -1,0 +1,115 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+%matplotlib inline
+
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, mean_absolute_percentage_error
+
+
+
+# import warnings
+import warnings
+# ignore warnings
+warnings.filterwarnings("ignore")
+
+df = pd.read_csv('Tetuan City power consumption.csv')
+df['DateTime'] = pd.to_datetime(df['DateTime'], errors='coerce')
+df = df.set_index('DateTime')
+df.head()
+
+df.tail()
+df.describe()
+df.info()
+df.shape
+
+
+def create_features(df):
+    """
+    Create time series features like hour, month, year, day, etc. based on time series index.
+    """
+    df = df.copy()
+    df['hour'] = df.index.hour
+    df['dayofweek'] = df.index.dayofweek
+    df['quarter'] = df.index.quarter
+    df['month'] = df.index.month
+    df['year'] = df.index.year
+    df['dayofyear'] = df.index.dayofyear
+    df['dayofmonth'] = df.index.day
+    df['weekofyear'] = df.index.isocalendar().week
+    return df
+
+data = create_features(df)
+
+data.head()
+
+
+f, ax = plt.subplots(figsize = (14,12))
+sns.heatmap(df.corr(),
+            annot = True,
+            linecolor = 'r',
+            linewidths = .5,
+            fmt = '.1f',
+            ax = ax);
+
+df.isna().sum()
+sns.pairplot(df)
+plt.show()
+
+
+data['Zone 1 Power Consumption'].loc[(data.index > '01-01-2017') & (data.index < '01-08-2017')] \
+    .plot(figsize=(15, 5), title='Week Of Data')
+plt.show()
+
+data['Zone 2 Power Consumption'].loc[(data.index > '01-01-2017') & (data.index < '01-08-2017')] \
+    .plot(figsize=(15, 5), title='Week Of Data')
+plt.show()
+
+data['Zone 3 Power Consumption'].loc[(data.index > '01-01-2017') & (data.index < '01-08-2017')] \
+    .plot(figsize=(15, 5), title='Week Of Data')
+plt.show()
+
+def pipeline(df, model, time_series=False, test_size=0.2, zone=1):
+    
+    train, test = train_test_split(df, test_size=test_size, shuffle=time_series)
+    
+    ## train test split
+    xtrain = train[['Temperature', 'Humidity', 'Wind Speed']]
+    ytrain = train[f'Zone {zone} Power Consumption'].values
+    
+    xtest = test[['Temperature', 'Humidity', 'Wind Speed']]
+    ytest = test[f'Zone {zone} Power Consumption'].values
+    
+    print(f'Train size : {len(xtrain)} | Test size : {len(xtest)}')
+    
+    ## model fit and predict
+    model.fit(xtrain, ytrain)
+    ypred = model.predict(xtest)
+    
+    ## metrics
+    score = mean_absolute_percentage_error(ypred, ytest)
+    print(f'Score : {score:.2f} %')
+   
+    ## plot
+    fig = go.Figure()
+    fig.add_traces(go.Scatter(x=np.arange(0, len(ytest)), y=ypred, name='Pred'))
+    fig.add_traces(go.Scatter(x=np.arange(0, len(ytest)), y=ytest, name='Test'))
+    fig.show()
+
+from sklearn.linear_model import LinearRegression, Ridge
+pipeline(df, LinearRegression(), zone=1)
+pipeline(df, LinearRegression(), zone=2)
+pipeline(df, LinearRegression(), zone=3)
+
+def predict_power_consumption(temperature, humidity, windspeed):
+
+  power_consumption = model.predict(temperature, humidity, windspeed)
+  uncertainty = model.confidence(temperature, humidity, windspeed)
+
+  return power_consumption, uncertainty
+
+def update_model(temperature, humidity, windspeed, power_consumption):
+  
+  df.add(temperature, humidity, windspeed, power_consumption)
+  model.update(df)
